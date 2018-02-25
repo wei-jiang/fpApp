@@ -1,0 +1,53 @@
+{
+  "_from": "git+https://github.com/wei-jiang/cordova-plugin-exitapp.git",
+  "_id": "cordova-plugin-exitapp@1.0.0",
+  "_inBundle": false,
+  "_location": "/cordova-plugin-exitapp",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "git",
+    "raw": "https://github.com/wei-jiang/cordova-plugin-exitapp.git",
+    "rawSpec": "https://github.com/wei-jiang/cordova-plugin-exitapp.git",
+    "saveSpec": "git+https://github.com/wei-jiang/cordova-plugin-exitapp.git",
+    "fetchSpec": "https://github.com/wei-jiang/cordova-plugin-exitapp.git",
+    "gitCommittish": null
+  },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "git+https://github.com/wei-jiang/cordova-plugin-exitapp.git#f7fc4507cadee3b7e809228617a39c32fa18a533",
+  "_spec": "https://github.com/wei-jiang/cordova-plugin-exitapp.git",
+  "_where": "D:\\github\\fpApp\\fpApp",
+  "bugs": {
+    "url": "https://github.com/wei-jiang/cordova-plugin-exitapp/issues"
+  },
+  "bundleDependencies": false,
+  "cordova": {
+    "id": "go.free.cordova.exitapp",
+    "platforms": [
+      "wp8",
+      "android",
+      "ios"
+    ]
+  },
+  "deprecated": false,
+  "description": "Implements navigator.app.exitApp on WP8, Android",
+  "homepage": "https://github.com/wei-jiang/cordova-plugin-exitapp#readme",
+  "keywords": [
+    "cordova",
+    "exit",
+    "terminate",
+    "ecosystem:cordova",
+    "cordova-wp8",
+    "cordova-android",
+    "cordova-ios"
+  ],
+  "license": "Apache 2.0",
+  "name": "cordova-plugin-exitapp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wei-jiang/cordova-plugin-exitapp.git"
+  },
+  "version": "1.0.0"
+}

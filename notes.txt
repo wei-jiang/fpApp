@@ -1,0 +1,4 @@
+cordova plugin add cordova-plugin-android-fingerprint-auth
+cordova plugin add cordova-plugin-crosswalk-webview
+cordova plugin add https://github.com/wei-jiang/cordova-plugin-exitapp.git
+cordova plugin remove go.free.cordova.exitapp
