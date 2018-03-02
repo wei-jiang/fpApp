@@ -9,16 +9,16 @@
    
       <div style="justify-content:space-around;margin-top:10px;">
 
-        <button v-if="device_ready && !has_user" class="btn positive" style="flex:1; margin-top:10px;" @click.prevent="read_mch_info()" v-bind:disabled="btn_read_mch_disabled">
+        <button v-if="device_ready && !has_user" class="btn positive" style="flex:1; margin-top:10px;" @click.prevent="reg_user_info()" v-bind:disabled="btn_reg_user_disabled">
           <h3 style="display:inline-block;margin:auto;">
-            {{btn_read_mch_disabled?'注册用户信息，请稍候……':'读取用户信息'}}
+            {{btn_reg_user_disabled?'注册用户信息，请稍候……':'注册用户信息'}}
           </h3>
         </button>
-        <button class="btn primary" @click.prevent="decrypt_by_fingerprint()">
-          指纹解锁
-        </button>  
-        <button class="btn primary" @click.prevent="exit_app()">
-          退出程序
+
+        <button class="btn primary" style="flex:1; margin-top:10px;" @click.prevent="exit_app()">
+          <h3 style="display:inline-block;margin:auto;">
+            退出程序
+          </h3>
         </button>  
         
       </div>
@@ -58,11 +58,6 @@ export default {
     this.$root.$on("on_qrcode", qr_code => {
       this.qr_dealer && this.qr_dealer(qr_code)      
     });
-
-  },
-  mounted() {
-    this.app.on({ page: "home", preventClose: false, content: null }, this);//add this for onReady function
-
     document.addEventListener(
       "deviceready",
       () => {
@@ -71,45 +66,24 @@ export default {
           // alert( JSON.stringify(ret) )
           if (ret.isAvailable) {
             this.login_user()
-            ////
-              let encryptConfig = {
-                locale:"zh_CN",
-                clientId: "南岳设备管理",
-                username: "david",
-                password: "currentTokenString111111111111111111111111111"
-              }; 
-              FingerprintAuth.encrypt(encryptConfig, result=> {
-                alert("successCallback(): " + JSON.stringify(result));
-                if (result.withFingerprint) {
-                    alert("Successfully encrypted credentials.");
-                    alert("Encrypted credentials: " + result.token);  
-                    localStorage.setItem('fg_token', result.token)
-                } else if (result.withBackup) {
-                    alert("Authenticated with backup password");
-                }
-              }, error=> {
-                  if (error === FingerprintAuth.ERRORS.FINGERPRINT_CANCELLED) {
-                      alert("FingerprintAuth Dialog Cancelled!");
-                  } else {
-                      alert("FingerprintAuth Error: " + error);
-                  }
-              });
           }
         }, msg=>{
-          phonon.alert("您的设备不支持此程序：" + msg, "需要指纹认证功能");
+          phonon.alert(`您的设备不支持此程序：${msg}`, "需要指纹认证功能");
+          this.exit_app()
         });
       },
       false
     );
-    
-    this.update_mch_info()    
+  },
+  mounted() {
+    this.app.on({ page: "home", preventClose: false, content: null }, this);//add this for onReady function 
   },
   data() {
     return {
-      btn_read_mch_disabled: false,
+      btn_reg_user_disabled: false,
       qr_dealer:null,
       has_user:false,
-      user_title:'',
+      user_title:'南岳设备管理',
       device_ready: false
     };
   },
@@ -119,29 +93,27 @@ export default {
     }
   },
   methods: {
-    exit_app(){
-      navigator.app.exitApp();
+    get_user_id(user_info){
+      return `${user_info.name}(${user_info.email})`
     },
-    decrypt_by_fingerprint(){
-      let fg_token = localStorage.getItem('fg_token')
-      let decryptConfig = {
+    //one time only
+    register_fp(user_info){
+      let encryptConfig = {
         locale:"zh_CN",
         clientId: "南岳设备管理",
-        username: "david",
-        token: fg_token
-      };
-
-      FingerprintAuth.decrypt(decryptConfig, result=> {
-          alert("successCallback(): " + JSON.stringify(result));
-          if (result.withFingerprint) {
-              alert("Successful biometric authentication.");
-              if (result.password) {
-                  alert("Successfully decrypted credential token.");
-                  alert("password: " + result.password);  
-              }
-          } else if (result.withBackup) {
-              alert("Authenticated with backup password");
-          }
+        username: this.get_user_id(user_info),
+        password: user_info.token
+      }; 
+      FingerprintAuth.encrypt(encryptConfig, result=> {
+        // alert("successCallback(): " + JSON.stringify(result));
+        if (result.withFingerprint) {
+            // alert("Successfully encrypted credentials.");
+            // alert("Encrypted credentials: " + result.token);  
+            localStorage.setItem('fg_token', result.token)
+        } else if (result.withBackup) {
+            // alert("Authenticated with backup password");
+        }
+        alert("Encrypted credentials: " + result.token);  
       }, error=> {
           if (error === FingerprintAuth.ERRORS.FINGERPRINT_CANCELLED) {
               alert("FingerprintAuth Dialog Cancelled!");
@@ -150,65 +122,110 @@ export default {
           }
       });
     },
+    exit_app(){
+      navigator.app.exitApp();
+    },
+    decrypt_by_fingerprint(user_info){
+      let decryptConfig = {
+        locale:"zh_CN",
+        clientId: "南岳设备管理",
+        username: this.get_user_id(user_info),
+        token: user_info.fg_token
+      };
+
+      FingerprintAuth.decrypt(decryptConfig, result=> {
+          // alert("successCallback(): " + JSON.stringify(result));
+          if (result.withFingerprint) {
+              // alert("Successful biometric authentication.");
+              if (result.password) {
+                  // alert("Successfully decrypted credential token.");
+                  // alert("password: " + result.password);  
+              }
+          } else if (result.withBackup) {
+              // alert("Authenticated with backup password");
+          }
+          window.access_token = result.password
+      }, error=> {
+          if (error === FingerprintAuth.ERRORS.FINGERPRINT_CANCELLED) {
+              // alert("FingerprintAuth Dialog Cancelled!");
+          } else {
+              // alert("FingerprintAuth Error: " + error);
+          }
+          const confirm = phonon.confirm('重新验证 或 退出程序？', '验证身份错误', true, '验证身份', '退出程序');
+          confirm.on('confirm', ()=> { this.decrypt_by_fingerprint(user_info) } );
+          confirm.on('cancel', ()=> { this.exit_app() } );
+      });
+    },
     //run after device ready
-    register_user() {
-      
+    register_user(qr_code) {
+      this.btn_reg_user_disabled = true;
+      ////////////////////////////////////////////////
+      var req = phonon.ajax({
+          method: 'POST',
+          url: 'https://pay.cninone.com/reg_app_usr',
+          //crossDomain: true,
+          dataType: 'json',
+          contentType: 'application/json;charset=utf-8',
+          data: {token: qr_code},
+          timeout: 5000,
+          /*headers: {
+              'header-name1': 'value1',
+              'header-name2': 'value2'
+          },*/
+          success: (res, xhr)=> {
+              alert(JSON.stringify(res) );
+              if(res.ret ==0){
+                this.register_fp(res.user)
+              } else {
+                phonon.alert(`请联系【智慧旅游商务】获取用户信息二维码`, "非法的用户信息");
+              }
+              this.btn_reg_user_disabled = false;
+          },
+          error: (res, flagError, xhr)=> {
+              console.error(flagError);
+              alert(res);
+              this.btn_reg_user_disabled = false;
+          }
+      });
+      ////////////////////////////////////////////////
+      // net.emit( "verify_mch_token", qr_code,
+      //   res => {
+      //     if(res.ret == 0){
+      //       let capable = util.ability_title(res.info.ability)
+      //       adb.then(db => {
+      //         db.mch.remove(db.mch.find({}));
+      //         db.mch.insert({token:qr_code,info:res.info});
+      //         phonon.alert(`【${res.info.name}】商户可以读取(${capable})付款码收款！`, `导入${res.info.name}商户成功`);
+      //       })                
+      //     } else {
+      //       phonon.alert("无效的商户信息！", "读取商户信息失败");
+      //     }          
+      //     this.btn_reg_user_disabled = false;          
+      //   }
+      // );
     },
     onReady() {
       
     },
     login_user() {
       adb.then(db => {
-        this.products = _.map(db.product.find({}), p=>{
-          let cp = _.clone(p);
-          cp.selected = false;
-          cp.count = 1;
-          return cp
-        });
+        const user_info = db.user.findOne({})
+        if(user_info){
+          this.user_title = `南岳设备管理（${user_info.name}）`
+          this.has_user = true;
+          this.decrypt_by_fingerprint(user_info)
+        } else {
 
+        }
       })   
     },
     go_ssm(ssm) {
       phonon.navigator().changePage("product", '');
     },
 
-    handle_mch_info(qr_code){
-      this.btn_read_mch_disabled = true;
-      net.emit( "verify_mch_token", qr_code,
-        res => {
-          if(res.ret == 0){
-            let capable = util.ability_title(res.info.ability)
-            adb.then(db => {
-              db.mch.remove(db.mch.find({}));
-              db.mch.insert({token:qr_code,info:res.info});
-              this.update_mch_info()
-              phonon.alert(`【${res.info.name}】商户可以读取(${capable})付款码收款！`, `导入${res.info.name}商户成功`);
-            })                
-          } else {
-            phonon.alert("无效的商户信息！", "读取商户信息失败");
-          }          
-          this.btn_read_mch_disabled = false;          
-        }
-      );
-    },
-    
-    read_mch_info(){
-      this.qr_dealer = this.handle_mch_info
+    reg_user_info(){
+      this.qr_dealer = this.register_user
       this.read_qr()
-    },
-
-    update_mch_info() {
-      adb.then(db => {
-        const mch = db.mch.findOne({});
-        if(mch){
-          let capable = util.ability_title(mch.info.ability)
-          this.user_title = `${mch.info.name}收银台（${capable}）`
-          this.has_user = true;
-        } else {
-          this.user_title = '南岳设备管理'
-          this.has_user = false;
-        }
-      });
     },
     read_qr() {      
       window.Pos.scan_by_camera(
