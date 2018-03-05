@@ -23,6 +23,9 @@
     },
     "go.free.cordova.exitapp": {
       "PACKAGE_NAME": "go.free.fp.mgr"
+    },
+    "phonegap-plugin-barcodescanner": {
+      "PACKAGE_NAME": "go.free.fp.mgr"
     }
   },
   "dependent_plugins": {}

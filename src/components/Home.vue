@@ -15,7 +15,7 @@
           </h3>
         </button>
 
-        <button class="btn primary" style="flex:1; margin-top:10px;" @click.prevent="exit_app()">
+        <button class="btn negative" style="flex:1; margin-top:20px;" @click.prevent="exit_app()">
           <h3 style="display:inline-block;margin:auto;">
             退出程序
           </h3>
@@ -35,17 +35,7 @@ import adb from "../db";
 import net from "../net";
 import util from "../common/util"
 
-window.on_qr = function(qr) {
-  // alert(qr);
-  qr = JSON.parse(qr);
-  if (qr.ret == 0) {
-    //扫码成功，通过qr.qr_code获取二维码
-    // alert(qr.qr_code);
-    vm.$emit("on_qrcode", qr.qr_code);
-  } else {
-    phonon.alert("扫码失败，请重试", "用户取消操作");
-  }
-};
+
   
 export default {
   name: "PhononHomePage",
@@ -56,7 +46,7 @@ export default {
   },
   created: function() {
     this.$root.$on("on_qrcode", qr_code => {
-      this.qr_dealer && this.qr_dealer(qr_code)      
+   
     });
     document.addEventListener(
       "deviceready",
@@ -81,7 +71,6 @@ export default {
   data() {
     return {
       btn_reg_user_disabled: false,
-      qr_dealer:null,
       has_user:false,
       user_title:'南岳设备管理',
       device_ready: false
@@ -109,11 +98,16 @@ export default {
         if (result.withFingerprint) {
             // alert("Successfully encrypted credentials.");
             // alert("Encrypted credentials: " + result.token);  
-            localStorage.setItem('fg_token', result.token)
         } else if (result.withBackup) {
             // alert("Authenticated with backup password");
         }
-        alert("Encrypted credentials: " + result.token);  
+        // alert("Encrypted credentials: " + result.token);  
+        delete user_info.token;
+        user_info.finger_token = result.token
+        adb.then(db => {
+          db.user.insert(user_info)
+          this.set_user_info(user_info)
+        }) 
       }, error=> {
           if (error === FingerprintAuth.ERRORS.FINGERPRINT_CANCELLED) {
               alert("FingerprintAuth Dialog Cancelled!");
@@ -130,7 +124,7 @@ export default {
         locale:"zh_CN",
         clientId: "南岳设备管理",
         username: this.get_user_id(user_info),
-        token: user_info.fg_token
+        token: user_info.finger_token
       };
 
       FingerprintAuth.decrypt(decryptConfig, result=> {
@@ -165,15 +159,15 @@ export default {
           url: 'https://pay.cninone.com/reg_app_usr',
           //crossDomain: true,
           dataType: 'json',
-          contentType: 'application/json;charset=utf-8',
-          data: {token: qr_code},
+          contentType: 'application/json; charset=utf-8',
+          data: JSON.stringify({token: qr_code}),
           timeout: 5000,
           /*headers: {
               'header-name1': 'value1',
               'header-name2': 'value2'
           },*/
           success: (res, xhr)=> {
-              alert(JSON.stringify(res) );
+              // alert('in phonon.ajax success'+JSON.stringify(res) );
               if(res.ret ==0){
                 this.register_fp(res.user)
               } else {
@@ -183,36 +177,23 @@ export default {
           },
           error: (res, flagError, xhr)=> {
               console.error(flagError);
-              alert(res);
+              alert(`in phonon.ajax error: ${res} ${flagError}`);
               this.btn_reg_user_disabled = false;
           }
       });
-      ////////////////////////////////////////////////
-      // net.emit( "verify_mch_token", qr_code,
-      //   res => {
-      //     if(res.ret == 0){
-      //       let capable = util.ability_title(res.info.ability)
-      //       adb.then(db => {
-      //         db.mch.remove(db.mch.find({}));
-      //         db.mch.insert({token:qr_code,info:res.info});
-      //         phonon.alert(`【${res.info.name}】商户可以读取(${capable})付款码收款！`, `导入${res.info.name}商户成功`);
-      //       })                
-      //     } else {
-      //       phonon.alert("无效的商户信息！", "读取商户信息失败");
-      //     }          
-      //     this.btn_reg_user_disabled = false;          
-      //   }
-      // );
     },
     onReady() {
       
+    },
+    set_user_info(user_info){
+      this.user_title = `南岳设备管理（${user_info.name}）`
+      this.has_user = true;
     },
     login_user() {
       adb.then(db => {
         const user_info = db.user.findOne({})
         if(user_info){
-          this.user_title = `南岳设备管理（${user_info.name}）`
-          this.has_user = true;
+          this.set_user_info(user_info)
           this.decrypt_by_fingerprint(user_info)
         } else {
 
@@ -224,20 +205,36 @@ export default {
     },
 
     reg_user_info(){
-      this.qr_dealer = this.register_user
-      this.read_qr()
-    },
-    read_qr() {      
-      window.Pos.scan_by_camera(
-        data=> {
-          // alert(data);
-        },
-        err=> {
-          alert(err);
-        }
+      cordova.plugins.barcodeScanner.scan(
+          result=> {
+            if(result.cancelled){
+              phonon.alert("扫码失败，请重试", "用户取消操作");
+            } else if(result.text){
+              // alert("Format: " + result.format)
+              this.register_user(result.text)
+            } else {
+              phonon.alert("原因未知", "扫码失败");
+            }
+
+          },
+          error=> {
+            phonon.alert("错误原因：" + error, "扫码失败");
+          },
+          {
+              // preferFrontCamera : true, // iOS and Android
+              showFlipCameraButton : true, // iOS and Android
+              showTorchButton : true, // iOS and Android
+              torchOn: true, // Android, launch with the torch switched on (if available)
+              saveHistory: true, // Android, save scan history (default false)
+              prompt : "读取【智慧旅游】用户信息二维码", // Android
+              // resultDisplayDuration: 500, // Android, display scanned text for X ms. 0 suppresses it entirely, default 1500
+              // formats : "QR_CODE,PDF_417", // default: all but PDF_417 and RSS_EXPANDED
+              // orientation : "landscape", // Android only (portrait|landscape), default unset so it rotates with the device
+              // disableAnimations : true, // iOS
+              disableSuccessBeep: false // iOS and Android
+          }
       );
     }
-
   }
 };
 </script>
