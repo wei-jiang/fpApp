@@ -6,19 +6,35 @@
       </div>
     </header>
     <div class="content">
-   
+      
+      <ul class="list">
+          <li v-if="has_user" class="divider">在线自助机（{{ssm_count}}台）</li>
+          <!-- <li v-else>请登陆后管理</li> -->
+          <li class="ssm_info" v-for="ssm in ssms">
+              <div>设备id:{{ssm.dev_id}}</div>
+              <div>类型:{{ssm.type}}</div>
+              <div>设备ip:{{ssm.my_ip}}</div>
+              <div>设备位置:{{ssm.dev_loc}}</div>
+              <div>联系电话:{{ssm.cphone}}</div>
+              <div>所在城市:{{ssm.city}}</div>
+              <div>当前版本:{{ssm.version}}</div>
+              <video v-bind:id="ssm.ssm_hash" controls="controls" autoplay></video>
+              <button class="btn positive" @click.prevent="toggle_video(ssm, $event.target)">{{ssm.peer?'关闭':'开启'}}远程视频</button>
+          </li>
+          
+      </ul>
       <div style="justify-content:space-around;margin-top:10px;">
 
-        <button v-if="device_ready && !has_user" class="btn positive" style="flex:1; margin-top:10px;" @click.prevent="reg_user_info()" v-bind:disabled="btn_reg_user_disabled">
-          <h3 style="display:inline-block;margin:auto;">
+        <button v-if="device_ready && !has_user" 
+          class="btn positive" style="font-size:30px; margin-top:10px;" 
+          @click.prevent="reg_user_info()" v-bind:disabled="btn_reg_user_disabled">
             {{btn_reg_user_disabled?'注册用户信息，请稍候……':'注册用户信息'}}
-          </h3>
         </button>
 
-        <button class="btn negative" style="flex:1; margin-top:20px;" @click.prevent="exit_app()">
-          <h3 style="display:inline-block;margin:auto;">
+        <button class="btn negative" style="font-size:30px; margin-top:20px;" @click.prevent="exit_app()">
+          <!-- <h3 style="display:inline-block;margin:auto;"> -->
             退出程序
-          </h3>
+          <!-- </h3> -->
         </button>  
         
       </div>
@@ -33,10 +49,8 @@ import _ from "lodash";
 import Noty from "noty";
 import adb from "../db";
 import net from "../net";
-import util from "../common/util"
+import util from "../common/util";
 
-
-  
 export default {
   name: "PhononHomePage",
   props: {
@@ -45,210 +59,251 @@ export default {
     }
   },
   created: function() {
-    this.$root.$on("on_qrcode", qr_code => {
-   
+    this.$root.$on("ssms_all_yours", ssms => {
+      this.ssms = _.map(ssms, s => {
+        s.peer = null;
+        return s;
+      });
     });
     document.addEventListener(
       "deviceready",
       () => {
         this.device_ready = true;
-        FingerprintAuth.isAvailable(ret=>{
-          // alert( JSON.stringify(ret) )
-          if (ret.isAvailable) {
-            this.login_user()
+        FingerprintAuth.isAvailable(
+          ret => {
+            // alert( JSON.stringify(ret) )
+            if (ret.isAvailable) {
+              this.login_user();
+            }
+          },
+          msg => {
+            phonon.alert(`您的设备不支持此程序：${msg}`, "需要指纹认证功能");
+            this.exit_app();
           }
-        }, msg=>{
-          phonon.alert(`您的设备不支持此程序：${msg}`, "需要指纹认证功能");
-          this.exit_app()
-        });
+        );
       },
       false
     );
   },
   mounted() {
-    this.app.on({ page: "home", preventClose: false, content: null }, this);//add this for onReady function 
+    this.app.on({ page: "home", preventClose: false, content: null }, this); //add this for onReady function
   },
   data() {
     return {
+      ssms: [],
       btn_reg_user_disabled: false,
-      has_user:false,
-      user_title:'南岳设备管理',
+      has_user: false,
+      user_title: "南岳设备管理",
       device_ready: false
     };
   },
   computed: {
-    is_empty() {
-      return ''
+    ssm_count() {
+      return _.size(this.ssms);
     }
   },
   methods: {
-    get_user_id(user_info){
-      return `${user_info.name}(${user_info.email})`
+    toggle_video(ssm) {
+      if (ssm.peer) {
+        ssm.peer.destroy();
+        ssm.peer = null;
+      } else {
+        net.new_ssm_peer(ssm);
+      }      
+    },
+    do_works() {
+      net.init();
+    },
+    get_user_id(user_info) {
+      return `${user_info.name}(${user_info.email})`;
     },
     //one time only
-    register_fp(user_info){
+    register_fp(user_info) {
       let encryptConfig = {
-        locale:"zh_CN",
+        locale: "zh_CN",
         clientId: "南岳设备管理",
         username: this.get_user_id(user_info),
         password: user_info.token
-      }; 
-      FingerprintAuth.encrypt(encryptConfig, result=> {
-        // alert("successCallback(): " + JSON.stringify(result));
-        if (result.withFingerprint) {
+      };
+      FingerprintAuth.encrypt(
+        encryptConfig,
+        result => {
+          // alert("successCallback(): " + JSON.stringify(result));
+          if (result.withFingerprint) {
             // alert("Successfully encrypted credentials.");
-            // alert("Encrypted credentials: " + result.token);  
-        } else if (result.withBackup) {
+            // alert("Encrypted credentials: " + result.token);
+          } else if (result.withBackup) {
             // alert("Authenticated with backup password");
-        }
-        // alert("Encrypted credentials: " + result.token);  
-        delete user_info.token;
-        user_info.finger_token = result.token
-        adb.then(db => {
-          db.user.insert(user_info)
-          this.set_user_info(user_info)
-        }) 
-      }, error=> {
-          if (error === FingerprintAuth.ERRORS.FINGERPRINT_CANCELLED) {
-              alert("FingerprintAuth Dialog Cancelled!");
-          } else {
-              alert("FingerprintAuth Error: " + error);
           }
-      });
+          // alert("Encrypted credentials: " + result.token);
+          delete user_info.token;
+          user_info.finger_token = result.token;
+          adb.then(db => {
+            db.user.insert(user_info);
+            this.set_user_info(user_info);
+            this.do_works();
+          });
+        },
+        error => {
+          if (error === FingerprintAuth.ERRORS.FINGERPRINT_CANCELLED) {
+            alert("FingerprintAuth Dialog Cancelled!");
+          } else {
+            alert("FingerprintAuth Error: " + error);
+          }
+        }
+      );
     },
-    exit_app(){
+    exit_app() {
       navigator.app.exitApp();
     },
-    decrypt_by_fingerprint(user_info){
+    decrypt_by_fingerprint(user_info) {
       let decryptConfig = {
-        locale:"zh_CN",
+        locale: "zh_CN",
         clientId: "南岳设备管理",
         username: this.get_user_id(user_info),
         token: user_info.finger_token
       };
 
-      FingerprintAuth.decrypt(decryptConfig, result=> {
+      FingerprintAuth.decrypt(
+        decryptConfig,
+        result => {
           // alert("successCallback(): " + JSON.stringify(result));
           if (result.withFingerprint) {
-              // alert("Successful biometric authentication.");
-              if (result.password) {
-                  // alert("Successfully decrypted credential token.");
-                  // alert("password: " + result.password);  
-              }
+            // alert("Successful biometric authentication.");
+            if (result.password) {
+              // alert("Successfully decrypted credential token.");
+              // alert("password: " + result.password);
+            }
           } else if (result.withBackup) {
-              // alert("Authenticated with backup password");
+            // alert("Authenticated with backup password");
           }
-          window.access_token = result.password
-      }, error=> {
+          window.access_token = result.password;
+          this.do_works();
+        },
+        error => {
           if (error === FingerprintAuth.ERRORS.FINGERPRINT_CANCELLED) {
-              // alert("FingerprintAuth Dialog Cancelled!");
+            // alert("FingerprintAuth Dialog Cancelled!");
           } else {
-              // alert("FingerprintAuth Error: " + error);
+            // alert("FingerprintAuth Error: " + error);
           }
-          const confirm = phonon.confirm('重新验证 或 退出程序？', '验证身份错误', true, '验证身份', '退出程序');
-          confirm.on('confirm', ()=> { this.decrypt_by_fingerprint(user_info) } );
-          confirm.on('cancel', ()=> { this.exit_app() } );
-      });
+          const confirm = phonon.confirm(
+            "重新验证 或 退出程序？",
+            "验证身份错误",
+            true,
+            "验证身份",
+            "退出程序"
+          );
+          confirm.on("confirm", () => {
+            this.decrypt_by_fingerprint(user_info);
+          });
+          confirm.on("cancel", () => {
+            this.exit_app();
+          });
+        }
+      );
     },
     //run after device ready
     register_user(qr_code) {
       this.btn_reg_user_disabled = true;
       ////////////////////////////////////////////////
       var req = phonon.ajax({
-          method: 'POST',
-          url: 'https://pay.cninone.com/reg_app_usr',
-          //crossDomain: true,
-          dataType: 'json',
-          contentType: 'application/json; charset=utf-8',
-          data: JSON.stringify({token: qr_code}),
-          timeout: 5000,
-          /*headers: {
+        method: "POST",
+        url: "https://pay.cninone.com/reg_app_usr",
+        //crossDomain: true,
+        dataType: "json",
+        contentType: "application/json; charset=utf-8",
+        data: JSON.stringify({ token: qr_code }),
+        timeout: 5000,
+        /*headers: {
               'header-name1': 'value1',
               'header-name2': 'value2'
           },*/
-          success: (res, xhr)=> {
-              // alert('in phonon.ajax success'+JSON.stringify(res) );
-              if(res.ret ==0){
-                this.register_fp(res.user)
-              } else {
-                phonon.alert(`请联系【智慧旅游商务】获取用户信息二维码`, "非法的用户信息");
-              }
-              this.btn_reg_user_disabled = false;
-          },
-          error: (res, flagError, xhr)=> {
-              console.error(flagError);
-              alert(`in phonon.ajax error: ${res} ${flagError}`);
-              this.btn_reg_user_disabled = false;
+        success: (res, xhr) => {
+          // alert('in phonon.ajax success'+JSON.stringify(res) );
+          if (res.ret == 0) {
+            this.register_fp(res.user);
+          } else {
+            phonon.alert(
+              `请联系【智慧旅游商务】获取用户信息二维码`,
+              "非法的用户信息"
+            );
           }
+          this.btn_reg_user_disabled = false;
+        },
+        error: (res, flagError, xhr) => {
+          console.error(flagError);
+          alert(`in phonon.ajax error: ${res} ${flagError}`);
+          this.btn_reg_user_disabled = false;
+        }
       });
     },
-    onReady() {
-      
-    },
-    set_user_info(user_info){
-      this.user_title = `南岳设备管理（${user_info.name}）`
+    onReady() {},
+    set_user_info(user_info) {
+      this.user_title = `南岳设备管理（${user_info.name}）`;
       this.has_user = true;
     },
     login_user() {
       adb.then(db => {
-        const user_info = db.user.findOne({})
-        if(user_info){
-          this.set_user_info(user_info)
-          this.decrypt_by_fingerprint(user_info)
+        const user_info = db.user.findOne({});
+        if (user_info) {
+          this.set_user_info(user_info);
+          this.decrypt_by_fingerprint(user_info);
         } else {
-
         }
-      })   
+      });
     },
     go_ssm(ssm) {
-      phonon.navigator().changePage("product", '');
+      phonon.navigator().changePage("product", "");
     },
 
-    reg_user_info(){
+    reg_user_info() {
       cordova.plugins.barcodeScanner.scan(
-          result=> {
-            if(result.cancelled){
-              phonon.alert("扫码失败，请重试", "用户取消操作");
-            } else if(result.text){
-              // alert("Format: " + result.format)
-              this.register_user(result.text)
-            } else {
-              phonon.alert("原因未知", "扫码失败");
-            }
-
-          },
-          error=> {
-            phonon.alert("错误原因：" + error, "扫码失败");
-          },
-          {
-              // preferFrontCamera : true, // iOS and Android
-              showFlipCameraButton : true, // iOS and Android
-              showTorchButton : true, // iOS and Android
-              torchOn: true, // Android, launch with the torch switched on (if available)
-              saveHistory: true, // Android, save scan history (default false)
-              prompt : "读取【智慧旅游】用户信息二维码", // Android
-              // resultDisplayDuration: 500, // Android, display scanned text for X ms. 0 suppresses it entirely, default 1500
-              // formats : "QR_CODE,PDF_417", // default: all but PDF_417 and RSS_EXPANDED
-              // orientation : "landscape", // Android only (portrait|landscape), default unset so it rotates with the device
-              // disableAnimations : true, // iOS
-              disableSuccessBeep: false // iOS and Android
+        result => {
+          if (result.cancelled) {
+            phonon.alert("扫码失败，请重试", "用户取消操作");
+          } else if (result.text) {
+            // alert("Format: " + result.format)
+            this.register_user(result.text);
+          } else {
+            phonon.alert("原因未知", "扫码失败");
           }
+        },
+        error => {
+          phonon.alert("错误原因：" + error, "扫码失败");
+        },
+        {
+          // preferFrontCamera : true, // iOS and Android
+          showFlipCameraButton: true, // iOS and Android
+          showTorchButton: true, // iOS and Android
+          torchOn: true, // Android, launch with the torch switched on (if available)
+          saveHistory: true, // Android, save scan history (default false)
+          prompt: "读取【智慧旅游】用户信息二维码", // Android
+          // resultDisplayDuration: 500, // Android, display scanned text for X ms. 0 suppresses it entirely, default 1500
+          // formats : "QR_CODE,PDF_417", // default: all but PDF_417 and RSS_EXPANDED
+          // orientation : "landscape", // Android only (portrait|landscape), default unset so it rotates with the device
+          // disableAnimations : true, // iOS
+          disableSuccessBeep: false // iOS and Android
+        }
       );
     }
   }
 };
 </script>
 <style scoped>
-.order_info {
+video {
+  object-fit: fill;
+  display: none;
+}
+.ssm_info {
   display: flex;
-  flex-flow: row;
+  flex-flow: column;
+  border: 2px inset grey;
+}
+.ssm_info > div {
+  display: flex;
   justify-content: space-around;
   background-color: aquamarine;
-  border-style: inset;
-}
-.order {
-  margin-top: 5px;
-  border: 1px dotted purple;
+  border: 2px outset purple;
 }
 .content {
   display: flex;
@@ -258,12 +313,6 @@ export default {
   display: flex;
   flex-flow: column;
 }
-.his-data,
-.order {
-  display: flex;
-  flex-flow: column;
-}
-
 
 .parameters {
   margin-bottom: 10px;
@@ -290,8 +339,8 @@ input {
 }
 input[type="checkbox"] {
   margin-left: auto;
-  width: 28px; 
-  height:28px;
+  width: 28px;
+  height: 28px;
 }
 input[type="date"]:after {
   content: attr(placeholder);

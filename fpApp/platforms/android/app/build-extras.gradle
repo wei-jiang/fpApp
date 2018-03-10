@@ -4,5 +4,10 @@ android {
         disable 'MissingTranslation' 
         disable 'ExtraTranslation' 
     }
-    cdvBuildMultipleApks=false
+    // cdvBuildMultipleApks=false
+}
+configurations.all {
+    resolutionStrategy {
+        force 'com.android.support:support-v4:27.1.0'
+    }
 }
